@@ -1,5 +1,8 @@
 # syslog module for node and backendjs
 
+Supports UDP and Unix domain socket, the primary goal is to use with local syslogd server,
+does not depend on the libc syslog library.
+
 # Usage
 
  - `open(name, priority, facility)` - initialize syslog client, used by the logger module
