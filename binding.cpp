@@ -9,6 +9,8 @@
 #include <sys/un.h>
 #include <sys/time.h>
 #include <sys/socket.h>
+#include <unistd.h>
+#include <stdarg.h>
 
 #ifdef __APPLE__
 #define LOGDEV         "/var/run/syslog"
@@ -17,6 +19,10 @@
 #endif
 
 #define LOG_RFC3339    0x10000
+
+using namespace std;
+
+namespace Syslog {
 
 struct SyslogTls {
     SyslogTls(): sock(-1), port(514), tag("backend"), path(LOGDEV), connected(0), options(0), facility(LOG_USER), severity(LOG_INFO) {}
@@ -79,7 +85,7 @@ static void _syslogFreeTls(void *arg)
     SyslogTls *log = (SyslogTls*)arg;
 
     if (log) {
-        if (log->sock != -1) close(log->sock);
+        if (log->sock != -1) ::close(log->sock);
         delete log;
     }
 }
@@ -171,7 +177,7 @@ static void _syslogClose(void)
 {
     SyslogTls *log = _syslogGetTls();
 
-    if (log->sock != -1) close(log->sock);
+    if (log->sock != -1) ::close(log->sock);
     log->sock = -1;
     log->connected = 0;
 }
@@ -246,11 +252,11 @@ static void _syslogSendV(int severity, const char *fmt, va_list ap)
 
     // output to the console if requested
     if (log->options & LOG_CONS) {
-        if ((fd = open("/dev/console", O_WRONLY|O_NOCTTY, 0)) < 0) return;
+        if ((fd = ::open("/dev/console", O_WRONLY|O_NOCTTY, 0)) < 0) return;
         buf += "\r\n";
         const char *p = index(buf.c_str(), '>') + 1;
         n = write(fd, p, buf.size() - (p - buf.c_str()));
-        close(fd);
+        ::close(fd);
     }
 }
 
@@ -306,3 +312,5 @@ void SyslogInit(Handle<Object> target)
 }
 
 NODE_MODULE(binding, SyslogInit);
+
+}
