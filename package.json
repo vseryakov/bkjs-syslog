@@ -1,5 +1,5 @@
 {
-  "version": "0.1.3",
+  "version": "0.2.0",
   "author": "Vlad Seryakov",
   "name": "bkjs-syslog",
   "description": "syslog support for node.js and backendjs",
@@ -10,7 +10,7 @@
     "url": "https://github.com/vseryakov/bkjs-syslog.git"
   },
   "dependencies": {
-    "nan": ">= 2.0.9"
+    "nan": ">= 2.2.0"
   },
   "engines": {
     "node": ">= 0.10"

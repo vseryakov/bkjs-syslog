@@ -24,8 +24,8 @@ using namespace std;
 
 namespace Syslog {
 
-struct SyslogTls {
-    SyslogTls(): sock(-1), port(514), tag("backend"), path(LOGDEV), connected(0), options(0), facility(LOG_USER), severity(LOG_INFO) {}
+struct SyslogConfig {
+    SyslogConfig(): sock(-1), port(514), tag("backend"), path(LOGDEV), connected(0), options(0), facility(LOG_USER), severity(LOG_INFO) {}
 
     int      sock;                /* fd for log */
     int      port;                /* port for remote syslog */
@@ -41,10 +41,7 @@ static void _syslogOpen(string path, string tag, int options, int facility);
 static void _syslogClose(void);
 static void _syslogSend(int severity, const char *fmt, ...);
 static void _syslogSendV(int severity, const char *fmt, va_list ap);
-static void _syslogFreeTls(void *arg);
-static SyslogTls *_syslogGetTls(void);
-
-static pthread_key_t key;
+static SyslogConfig _config;
 
 static NAN_METHOD(open)
 {
@@ -67,27 +64,6 @@ static NAN_METHOD(send)
 static NAN_METHOD(close)
 {
     _syslogClose();
-}
-
-static SyslogTls *_syslogGetTls(void)
-{
-    SyslogTls *log = (SyslogTls*)pthread_getspecific(key);
-
-    if (!log) {
-        log = new SyslogTls;
-        pthread_setspecific(key, log);
-    }
-    return log;
-}
-
-static void _syslogFreeTls(void *arg)
-{
-    SyslogTls *log = (SyslogTls*)arg;
-
-    if (log) {
-        if (log->sock != -1) ::close(log->sock);
-        delete log;
-    }
 }
 
 static long long _clock()
@@ -116,58 +92,57 @@ static string _fmtTime3339(int64_t msec)
 
 static void _syslogOpen(string path, string tag, int options, int facility)
 {
-    SyslogTls *log = _syslogGetTls();
     int changed = 0;
 
-    if (!path.empty() && path != log->path) {
-        log->path = path;
+    if (!path.empty() && path != _config.path) {
+        _config.path = path;
         changed = 1;
     }
-    if (!tag.empty() && tag != log->tag) {
-        log->tag = tag;
+    if (!tag.empty() && tag != _config.tag) {
+        _config.tag = tag;
         changed = 1;
     }
-    if (options && options != log->options) {
-        log->options = options;
+    if (options && options != _config.options) {
+        _config.options = options;
         changed = 1;
     }
-    if (facility != -1 && facility != log->facility) {
-        log->facility = facility;
+    if (facility != -1 && facility != _config.facility) {
+        _config.facility = facility;
         changed = 1;
     }
     if (changed) {
         _syslogClose();
     }
 
-    if (log->sock == -1) {
-        if (!log->path.empty() && log->path[0] == '/') {
+    if (_config.sock == -1) {
+        if (!_config.path.empty() && _config.path[0] == '/') {
             struct sockaddr_un un;
             memset(&un, 0, sizeof(un));
             un.sun_family = AF_UNIX;
-            strncpy(un.sun_path, log->path.c_str(), sizeof(un.sun_path) - 1);
-            if (log->options & LOG_NDELAY) {
-                log->sock = socket(AF_UNIX, SOCK_DGRAM, 0);
+            strncpy(un.sun_path, _config.path.c_str(), sizeof(un.sun_path) - 1);
+            if (_config.options & LOG_NDELAY) {
+                _config.sock = socket(AF_UNIX, SOCK_DGRAM, 0);
             }
-            if (log->sock != -1 && !log->connected && connect(log->sock, (struct sockaddr*)&un, sizeof(un)) != -1) {
-                log->connected = 1;
+            if (_config.sock != -1 && !_config.connected && connect(_config.sock, (struct sockaddr*)&un, sizeof(un)) != -1) {
+                _config.connected = 1;
             }
         } else {
             struct sockaddr_in sa;
-            char *ptr = (char*)strchr(log->path.c_str(), ':');
+            char *ptr = (char*)strchr(_config.path.c_str(), ':');
             if (ptr != NULL) {
                 *ptr++ = 0;
-                log->port = atoi(ptr);
+                _config.port = atoi(ptr);
             }
             memset(&sa, 0, sizeof(struct sockaddr_in));
             sa.sin_family = AF_INET;
-            sa.sin_addr.s_addr = inet_addr(log->path.c_str());
-            sa.sin_port = htons(log->port);
+            sa.sin_addr.s_addr = inet_addr(_config.path.c_str());
+            sa.sin_port = htons(_config.port);
 
-            if (log->options & LOG_NDELAY) {
-                log->sock = socket(AF_INET, SOCK_DGRAM, 0);
+            if (_config.options & LOG_NDELAY) {
+                _config.sock = socket(AF_INET, SOCK_DGRAM, 0);
             }
-            if (log->sock != -1 && !log->connected && connect(log->sock, (struct sockaddr*)&sa, sizeof(sa)) != -1) {
-                log->connected = 1;
+            if (_config.sock != -1 && !_config.connected && connect(_config.sock, (struct sockaddr*)&sa, sizeof(sa)) != -1) {
+                _config.connected = 1;
             }
         }
     }
@@ -175,11 +150,9 @@ static void _syslogOpen(string path, string tag, int options, int facility)
 
 static void _syslogClose(void)
 {
-    SyslogTls *log = _syslogGetTls();
-
-    if (log->sock != -1) ::close(log->sock);
-    log->sock = -1;
-    log->connected = 0;
+    if (_config.sock != -1) ::close(_config.sock);
+    _config.sock = -1;
+    _config.connected = 0;
 }
 
 static void _syslogSend(int severity, const char *fmt, ...)
@@ -195,25 +168,24 @@ static void _syslogSendV(int severity, const char *fmt, va_list ap)
 {
     string buf, err = strerror(errno);
     int fd, offset;
-    SyslogTls *log = _syslogGetTls();
 
-    if (severity == -1) severity = log->severity;
+    if (severity == -1) severity = _config.severity;
 
     // see if we should just throw out this message
     if (!LOG_MASK(LOG_PRI(severity)) || (severity &~ (LOG_PRIMASK|LOG_FACMASK))) return;
 
-    if (log->sock < 0 || !log->connected) {
+    if (_config.sock < 0 || !_config.connected) {
         _syslogClose();
-        _syslogOpen("", "", log->options | LOG_NDELAY, -1);
-        if (!log->connected) return;
+        _syslogOpen("", "", _config.options | LOG_NDELAY, -1);
+        if (!_config.connected) return;
     }
 
     // set default facility if none specified
-    if ((severity & LOG_FACMASK) == 0) severity |= log->facility;
+    if ((severity & LOG_FACMASK) == 0) severity |= _config.facility;
 
     // build the message
     char tmp[128];
-    if (log->options & LOG_RFC3339) {
+    if (_config.options & LOG_RFC3339) {
         snprintf(tmp, sizeof(tmp), "<%d>%s ", severity, _fmtTime3339(_clock()).c_str());
         buf = tmp;
     } else {
@@ -223,14 +195,14 @@ static void _syslogSendV(int severity, const char *fmt, va_list ap)
     }
     offset = buf.size();
 
-    if (!log->tag.empty()) {
-        buf += log->tag;
+    if (!_config.tag.empty()) {
+        buf += _config.tag;
     }
-    if (log->options & LOG_PID) {
+    if (_config.options & LOG_PID) {
         sprintf(tmp, "[%d]", getpid());
         buf += tmp;
     }
-    if (!log->tag.empty()) {
+    if (!_config.tag.empty()) {
         buf += ": ";
     }
 
@@ -242,16 +214,16 @@ static void _syslogSendV(int severity, const char *fmt, va_list ap)
     }
 
     // output to stderr if requested
-    if (log->options & LOG_PERROR) {
+    if (_config.options & LOG_PERROR) {
         n = write(2, buf.c_str() + offset, buf.size() - offset);
     }
 
     // output to the syslog socket
-    int rc = write(log->sock, buf.c_str(), buf.size());
+    int rc = write(_config.sock, buf.c_str(), buf.size());
     if (rc == -1) _syslogClose();
 
     // output to the console if requested
-    if (log->options & LOG_CONS) {
+    if (_config.options & LOG_CONS) {
         if ((fd = ::open("/dev/console", O_WRONLY|O_NOCTTY, 0)) < 0) return;
         buf += "\r\n";
         const char *p = index(buf.c_str(), '>') + 1;
@@ -263,7 +235,6 @@ static void _syslogSendV(int severity, const char *fmt, va_list ap)
 void SyslogInit(Handle<Object> target)
 {
     Nan::HandleScope scope;
-    pthread_key_create(&key, _syslogFreeTls);
     NAN_EXPORT(target, open);
     NAN_EXPORT(target, send);
     NAN_EXPORT(target, close);
