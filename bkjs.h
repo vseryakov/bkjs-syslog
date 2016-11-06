@@ -60,48 +60,8 @@ using namespace std;
 #define NAN_TRY_CATCH_CALL(context, callback, argc, argv) { Nan::TryCatch try_catch; (callback)->Call((context), (argc), (argv)); if (try_catch.HasCaught()) FatalException(try_catch); }
 #define NAN_TRY_CATCH_CALL_RETURN(context, callback, argc, argv, rc) { Nan::TryCatch try_catch; (callback)->Call((context), (argc), (argv)); if (try_catch.HasCaught()) { FatalException(try_catch); return rc; }}
 
-#define NAN_DEFINE_CONSTANT_INTEGER(target, constant, name) (target)->Set(Nan::New(#name).ToLocalChecked(),Nan::New(constant),static_cast<PropertyAttribute>(ReadOnly | DontDelete) );
-#define NAN_DEFINE_CONSTANT_STRING(target, constant, name) (target)->Set(Nan::New(#name).ToLocalChecked(),Nan::New(constant).ToLocalChecked(),static_cast<PropertyAttribute>(ReadOnly | DontDelete));
-
-#define REQUIRE_ARGUMENT(i) if (args.Length() <= i || args[i]->IsUndefined()) return ThrowException(Exception::TypeError(String::New("Argument " #i " is required")));
-#define REQUIRE_ARGUMENT_STRING(i, var) if (args.Length() <= (i) || !args[i]->IsString()) return ThrowException(Exception::TypeError(String::New("Argument " #i " must be a string"))); String::Utf8Value var(args[i]->ToString());
-#define REQUIRE_ARGUMENT_AS_STRING(i, var) if (args.Length() <= (i)) return ThrowException(Exception::TypeError(String::New("Argument " #i " must be a string"))); String::Utf8Value var(args[i]->ToString());
-#define REQUIRE_ARGUMENT_OBJECT(i, var) if (args.Length() <= (i) || !args[i]->IsObject()) return ThrowException(Exception::TypeError(String::New("Argument " #i " must be an object"))); Local<Object> var(args[i]->ToObject());
-#define REQUIRE_ARGUMENT_INT(i, var) if (args.Length() <= (i)) return ThrowException(Exception::TypeError(String::New("Argument " #i " must be an integer"))); int var = args[i]->Int32Value();
-#define REQUIRE_ARGUMENT_INT64(i, var) if (args.Length() <= (i)) return ThrowException(Exception::TypeError(String::New("Argument " #i " must be an integer"))); int64_t var = args[i]->NumberValue();
-#define REQUIRE_ARGUMENT_BOOL(i, var) if (args.Length() <= (i)) return ThrowException(Exception::TypeError(String::New("Argument " #i " must be a boolean"))); int var = args[i]->Int32Value();
-#define REQUIRE_ARGUMENT_NUMBER(i, var) if (args.Length() <= (i)) return ThrowException(Exception::TypeError(String::New("Argument " #i " must be a number"))); double var = args[i]->NumberValue();
-#define REQUIRE_ARGUMENT_ARRAY(i, var) if (args.Length() <= (i) || !args[i]->IsArray()) return ThrowException(Exception::TypeError(String::New("Argument " #i " must be an array"))); Local<Array> var = Local<Array>::Cast(args[i]);
-#define REQUIRE_ARGUMENT_FUNCTION(i, var) if (args.Length() <= (i) || !args[i]->IsFunction()) return ThrowException(Exception::TypeError(String::New("Argument " #i " must be a function"))); Local<Function> var = Local<Function>::Cast(args[i]);
-
-#define EXPECT_ARGUMENT_FUNCTION(i, var) Local<Function> var; \
-        if (args.Length() > 0 && args.Length() > (i) && !args[(i) >= 0 ? (i) : args.Length() - 1]->IsUndefined()) { \
-            if (!args[(i) >= 0 ? (i) : args.Length() - 1]->IsFunction()) return ThrowException(Exception::TypeError(String::New("Argument " #i " must be a function"))); \
-            var = Local<Function>::Cast(args[(i) >= 0 ? (i) : args.Length() - 1]); }
-
-#define OPTIONAL_ARGUMENT_FUNCTION(i, var) Local<Function> var; \
-        if (args.Length() > 0 && args.Length() > (i) && args[(i) >= 0 ? (i) : args.Length() - 1]->IsFunction()) \
-        var = Local<Function>::Cast(args[(i) >= 0 ? (i) : args.Length() - 1]);
-
-#define OPTIONAL_ARGUMENT_INT(i, var) int var = (args.Length() > (i) && args[i]->IsInt32() ? args[i]->Int32Value() : 0);
-#define OPTIONAL_ARGUMENT_AS_INT(i, var) int var = (args.Length() > (i) ? args[i]->Int32Value() : 0);
-#define OPTIONAL_ARGUMENT_INT2(i, var, dflt) int var = (args.Length() > (i) && args[i]->IsInt32() ? args[i]->Int32Value() : dflt);
-#define OPTIONAL_ARGUMENT_NUMBER(i, var) float var = (args.Length() > (i) && args[i]->IsNumber() ? args[i]->NumberValue() : 0);
-#define OPTIONAL_ARGUMENT_STRING(i, var) String::Utf8Value var(args.Length() > (i) && args[i]->IsString() ? args[i]->ToString() : String::New(""));
-#define OPTIONAL_ARGUMENT_STRING2(i, var, dflt) String::Utf8Value var(args.Length() > (i) && args[i]->IsString() ? args[i]->ToString() : dflt);
-#define OPTIONAL_ARGUMENT_AS_STRING(i, var) String::Utf8Value var(args.Length() > (i) ? args[i]->ToString() : String::New(""));
-#define OPTIONAL_ARGUMENT_ARRAY(i, var) Local<Array> var(args.Length() > (i) && args[i]->IsArray() ? Local<Array>::Cast(args[i]) : Local<Array>::New(Array::New()));
-#define OPTIONAL_ARGUMENT_OBJECT(i, var) Local<Object> var(args.Length() > (i) && args[i]->IsObject() ? Local<Object>::Cast(args[i]) : Local<Object>::New(Object::New()));
-
-#define GETOPTS_BOOL(obj,opts,name) if (!obj.IsEmpty()) { Local<String> name(String::New(#name)); if (obj->Has(name)) opts.name = obj->Get(name)->BooleanValue(); }
-#define GETOPTS_INT(obj,opts,name) if (!obj.IsEmpty()) { Local<String> name(String::New(#name)); if (obj->Has(name)) opts.name = obj->Get(name)->ToInt32()->Value(); }
-#define GETOPTS_INTVAL(obj,opts,name,expr) if (!obj.IsEmpty()) { Local<String> name(String::New(#name)); if (obj->Has(name)) { int val = obj->Get(name)->ToInt32()->Value(); opts.name = (expr); }}
-
-#define DEFINE_CONSTANT_INTEGER(target, constant, name) (target)->Set(String::NewSymbol(#name),Integer::New(constant),static_cast<PropertyAttribute>(ReadOnly | DontDelete) );
-#define DEFINE_CONSTANT_STRING(target, constant, name) (target)->Set(String::NewSymbol(#name),String::NewSymbol(constant),static_cast<PropertyAttribute>(ReadOnly | DontDelete));
-
-#define TRY_CATCH_CALL(context, callback, argc, argv) { TryCatch try_catch; (callback)->Call((context), (argc), (argv)); if (try_catch.HasCaught()) FatalException(try_catch); }
-#define TRY_CATCH_CALL_RETURN(context, callback, argc, argv, rc) { TryCatch try_catch; (callback)->Call((context), (argc), (argv)); if (try_catch.HasCaught()) { FatalException(try_catch); return rc; }}
+#define NAN_DEFINE_CONSTANT_INTEGER(target, constant, name) Nan::ForceSet(target, Nan::New(#name).ToLocalChecked(), Nan::New(constant),static_cast<PropertyAttribute>(ReadOnly | DontDelete) );
+#define NAN_DEFINE_CONSTANT_STRING(target, constant, name) Nan::ForceSet(target, Nan::New(#name).ToLocalChecked(), Nan::New(constant).ToLocalChecked(),static_cast<PropertyAttribute>(ReadOnly | DontDelete));
 
 Local<Value> toArray(vector<string> &list, int numeric = 0);
 Local<Value> toArray(vector<pair<string,string> > &list);
