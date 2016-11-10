@@ -3,7 +3,19 @@
 //  April 2013
 //
 
-#include "bkjs.h"
+#include <node.h>
+#include <node_object_wrap.h>
+#include <node_buffer.h>
+#include <node_version.h>
+#include <v8.h>
+#include <v8-profiler.h>
+#include <uv.h>
+#include <nan.h>
+
+using namespace node;
+using namespace v8;
+using namespace std;
+
 #include <errno.h>
 #include <syslog.h>
 #include <sys/un.h>
@@ -20,7 +32,9 @@
 
 #define LOG_RFC3339    0x10000
 
-using namespace std;
+#define NAN_REQUIRE_ARGUMENT_STRING(i, var) if (info.Length() <= (i) || !info[i]->IsString()) {Nan::ThrowError("Argument " #i " must be a string"); return;} Nan::Utf8String var(info[i]->ToString());
+#define NAN_REQUIRE_ARGUMENT_INT(i, var) if (info.Length() <= (i)) {Nan::ThrowError("Argument " #i " must be an integer"); return;} int var = info[i]->Int32Value();
+#define NAN_DEFINE_CONSTANT_INTEGER(target, constant, name) Nan::ForceSet(target, Nan::New(#name).ToLocalChecked(), Nan::New(constant),static_cast<PropertyAttribute>(ReadOnly | DontDelete) );
 
 namespace Syslog {
 
@@ -43,7 +57,7 @@ static void _syslogSend(int severity, const char *fmt, ...);
 static void _syslogSendV(int severity, const char *fmt, va_list ap);
 static SyslogConfig _config;
 
-static NAN_METHOD(open)
+NAN_METHOD(open)
 {
     NAN_REQUIRE_ARGUMENT_STRING(0, name);
     NAN_REQUIRE_ARGUMENT_INT(1, options);
@@ -53,7 +67,7 @@ static NAN_METHOD(open)
     _syslogOpen("", *name, options, facility);
 }
 
-static NAN_METHOD(send)
+NAN_METHOD(send)
 {
     NAN_REQUIRE_ARGUMENT_INT(0, level);
     NAN_REQUIRE_ARGUMENT_STRING(1, msg);
@@ -61,7 +75,7 @@ static NAN_METHOD(send)
     _syslogSend(level, "%s", *msg);
 }
 
-static NAN_METHOD(close)
+NAN_METHOD(close)
 {
     _syslogClose();
 }
@@ -232,7 +246,7 @@ static void _syslogSendV(int severity, const char *fmt, va_list ap)
     }
 }
 
-void SyslogInit(Handle<Object> target)
+static NAN_MODULE_INIT(SyslogInit)
 {
     Nan::HandleScope scope;
     NAN_EXPORT(target, open);
